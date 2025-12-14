@@ -21,11 +21,10 @@ export function calculatePersonSummaries(bill: Bill): PersonSummary[] {
       }
     }
     
-    // Calculate tax share proportionally
-    const totalAssignedAmount = calculateTotalAssigned(bill);
-    const taxShare = totalAssignedAmount > 0 && bill.tax
-      ? (itemsTotal / totalAssignedAmount) * bill.tax
-      : 0;
+    // Calculate tax share by applying tax rate to person's subtotal
+    const billSubtotal = bill.subtotal || bill.items.reduce((sum, item) => sum + item.price, 0);
+    const taxRate = billSubtotal > 0 && bill.tax ? bill.tax / billSubtotal : 0;
+    const taxShare = itemsTotal * taxRate;
     
     const finalAmount = itemsTotal + taxShare;
     
