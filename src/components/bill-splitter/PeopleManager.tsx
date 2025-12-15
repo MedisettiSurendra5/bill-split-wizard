@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Bill, BillPerson, PERSON_COLORS } from '@/types/bill';
+import { generateId } from '@/lib/utils';
 
 interface PeopleManagerProps {
   bill: Bill;
@@ -17,7 +18,7 @@ export function PeopleManager({ bill, onBillChange }: PeopleManagerProps) {
     const availableColor = PERSON_COLORS.find(c => !usedColors.includes(c)) || PERSON_COLORS[0];
     
     const newPerson: BillPerson = {
-      id: `temp-${crypto.randomUUID()}`,
+      id: `temp-${generateId()}`,
       name: `Person ${bill.people.length + 1}`,
       color: availableColor,
     };
