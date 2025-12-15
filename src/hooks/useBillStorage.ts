@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bill, BillItem, BillPerson, ItemAssignment } from '@/types/bill';
 import { useToast } from '@/hooks/use-toast';
+import { generateId } from '@/lib/utils';
 
 export function useBillStorage() {
   const [bills, setBills] = useState<Bill[]>([]);
@@ -226,14 +227,14 @@ export function useBillStorage() {
       updatedAt: new Date(),
       people: billToDuplicate.people.map(p => ({
         ...p,
-        id: `temp-${crypto.randomUUID()}`,
+        id: `temp-${generateId()}`,
       })),
       items: billToDuplicate.items.map(item => ({
         ...item,
-        id: `temp-${crypto.randomUUID()}`,
+        id: `temp-${generateId()}`,
         assignments: item.assignments.map(a => ({
           ...a,
-          personId: `temp-${crypto.randomUUID()}`,
+          personId: `temp-${generateId()}`,
         })),
       })),
     };

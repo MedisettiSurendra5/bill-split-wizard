@@ -113,9 +113,23 @@ export function BillUploader({ onBillScanned }: BillUploaderProps) {
       onBillScanned(data.data, uploadedImageUrl || '');
     } catch (error) {
       console.error('Scan error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Provide user-friendly error messages
+      let userMessage = 'Failed to scan the bill. Please try again.';
+      if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+        userMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (errorMessage.includes('usage limit') || errorMessage.includes('402')) {
+        userMessage = 'Usage limit reached. Please try again later.';
+      } else if (errorMessage.includes('parse') || errorMessage.includes('JSON')) {
+        userMessage = 'Could not read the bill clearly. Please try with a clearer image.';
+      } else if (errorMessage.includes('No image')) {
+        userMessage = 'Please upload an image first.';
+      }
+      
       toast({
-        title: 'Scan failed',
-        description: error instanceof Error ? error.message : 'Failed to scan the bill. Please try again.',
+        title: 'Scan Failed',
+        description: userMessage,
         variant: 'destructive',
       });
     } finally {

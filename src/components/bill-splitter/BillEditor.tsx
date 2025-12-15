@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Bill, BillItem } from '@/types/bill';
 import { formatCurrency } from '@/lib/billCalculations';
+import { generateId } from '@/lib/utils';
 
 interface BillEditorProps {
   bill: Bill;
@@ -21,7 +22,7 @@ export function BillEditor({ bill, onBillChange }: BillEditorProps) {
 
   const addItem = () => {
     const newItem: BillItem = {
-      id: `temp-${crypto.randomUUID()}`,
+      id: `temp-${generateId()}`,
       name: 'New Item',
       price: 0,
       assignments: [],

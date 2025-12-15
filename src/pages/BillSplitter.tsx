@@ -10,6 +10,7 @@ import { BillHistory } from '@/components/bill-splitter/BillHistory';
 import { useBillStorage } from '@/hooks/useBillStorage';
 import { Bill, ScannedBillData, PERSON_COLORS } from '@/types/bill';
 import { Link } from 'react-router-dom';
+import { generateId } from '@/lib/utils';
 
 function createEmptyBill(): Bill {
   return {
@@ -37,7 +38,7 @@ export default function BillSplitter() {
       merchantName: data.merchant_name || '',
       currency: data.currency || 'USD',
       items: (data.items || []).map((item, index) => ({
-        id: `temp-${index}-${crypto.randomUUID()}`,
+        id: `temp-${index}-${generateId()}`,
         name: item.name,
         price: item.price,
         assignments: [],
