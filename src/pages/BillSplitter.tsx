@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, PlusCircle, Receipt } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Save, PlusCircle, Receipt, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BillUploader } from '@/components/bill-splitter/BillUploader';
 import { BillEditor } from '@/components/bill-splitter/BillEditor';
@@ -11,10 +11,17 @@ import { useBillStorage } from '@/hooks/useBillStorage';
 import { Bill, ScannedBillData, PERSON_COLORS } from '@/types/bill';
 import { Link } from 'react-router-dom';
 import { generateId } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+
+interface OpenBill {
+  bill: Bill;
+  view: 'upload' | 'edit';
+}
 
 function createEmptyBill(): Bill {
   return {
-    id: 'new',
+    id: `new-${generateId()}`,
     merchantName: '',
     currency: 'USD',
     items: [],
@@ -28,13 +35,31 @@ function createEmptyBill(): Bill {
 }
 
 export default function BillSplitter() {
-  const [currentBill, setCurrentBill] = useState<Bill>(createEmptyBill());
-  const [view, setView] = useState<'upload' | 'edit'>('upload');
+  const [openBills, setOpenBills] = useState<OpenBill[]>([
+    { bill: createEmptyBill(), view: 'upload' }
+  ]);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
   const { bills, loading, saveBill, deleteBill, duplicateBill, refreshBills } = useBillStorage();
+
+  const currentOpenBill = openBills[activeTabIndex];
+  const currentBill = currentOpenBill?.bill;
+  const currentView = currentOpenBill?.view || 'upload';
+
+  const updateCurrentBill = (updatedBill: Bill) => {
+    setOpenBills(prev => prev.map((ob, idx) => 
+      idx === activeTabIndex ? { ...ob, bill: updatedBill } : ob
+    ));
+  };
+
+  const setCurrentView = (view: 'upload' | 'edit') => {
+    setOpenBills(prev => prev.map((ob, idx) => 
+      idx === activeTabIndex ? { ...ob, view } : ob
+    ));
+  };
 
   const handleBillScanned = (data: ScannedBillData, imageUrl: string) => {
     const newBill: Bill = {
-      id: 'new',
+      id: `new-${generateId()}`,
       merchantName: data.merchant_name || '',
       currency: data.currency || 'USD',
       items: (data.items || []).map((item, index) => ({
@@ -52,16 +77,26 @@ export default function BillSplitter() {
       updatedAt: new Date(),
     };
     
-    setCurrentBill(newBill);
-    setView('edit');
+    updateCurrentBill(newBill);
+    setCurrentView('edit');
   };
 
   const handleSelectBill = (bill: Bill) => {
-    setCurrentBill(bill);
-    setView('edit');
+    // Check if bill is already open
+    const existingIndex = openBills.findIndex(ob => ob.bill.id === bill.id);
+    if (existingIndex !== -1) {
+      setActiveTabIndex(existingIndex);
+      return;
+    }
+    
+    // Open in a new tab
+    setOpenBills(prev => [...prev, { bill, view: 'edit' }]);
+    setActiveTabIndex(openBills.length);
   };
 
   const handleSaveBill = async () => {
+    if (!currentBill) return;
+    
     const subtotal = currentBill.items.reduce((sum, item) => sum + item.price, 0);
     const total = subtotal + (currentBill.tax || 0);
     
@@ -73,21 +108,50 @@ export default function BillSplitter() {
     
     const savedId = await saveBill(billToSave);
     if (savedId) {
+      // Update the bill with the saved ID
+      updateCurrentBill({ ...currentBill, id: savedId });
       await refreshBills();
     }
   };
 
   const handleNewBill = () => {
-    setCurrentBill(createEmptyBill());
-    setView('upload');
+    const newBill = createEmptyBill();
+    setOpenBills(prev => [...prev, { bill: newBill, view: 'upload' }]);
+    setActiveTabIndex(openBills.length);
+  };
+
+  const handleCloseTab = (index: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    
+    if (openBills.length === 1) {
+      // Reset to empty bill if closing the last tab
+      setOpenBills([{ bill: createEmptyBill(), view: 'upload' }]);
+      setActiveTabIndex(0);
+      return;
+    }
+    
+    setOpenBills(prev => prev.filter((_, idx) => idx !== index));
+    
+    // Adjust active tab index
+    if (activeTabIndex >= index && activeTabIndex > 0) {
+      setActiveTabIndex(activeTabIndex - 1);
+    }
   };
 
   const handleDeleteBill = async (billId: string) => {
     await deleteBill(billId);
-    if (currentBill.id === billId) {
-      setCurrentBill(createEmptyBill());
-      setView('upload');
+    
+    // Close any tabs with this bill
+    const tabIndex = openBills.findIndex(ob => ob.bill.id === billId);
+    if (tabIndex !== -1) {
+      handleCloseTab(tabIndex);
     }
+  };
+
+  const getBillTabName = (ob: OpenBill) => {
+    if (ob.bill.merchantName) return ob.bill.merchantName;
+    if (ob.bill.id.startsWith('new')) return 'New Bill';
+    return 'Untitled';
   };
 
   return (
@@ -114,80 +178,102 @@ export default function BillSplitter() {
             </div>
             
             <div className="flex items-center gap-2">
-              {view === 'edit' && (
-                <>
-                  <Button variant="outline" onClick={handleNewBill} className="gap-2">
-                    <PlusCircle className="w-4 h-4" />
-                    New Bill
-                  </Button>
-                  <Button onClick={handleSaveBill} className="gap-2">
-                    <Save className="w-4 h-4" />
-                    Save
-                  </Button>
-                </>
+              <Button variant="outline" onClick={handleNewBill} className="gap-2">
+                <PlusCircle className="w-4 h-4" />
+                New Bill
+              </Button>
+              {currentView === 'edit' && (
+                <Button onClick={handleSaveBill} className="gap-2">
+                  <Save className="w-4 h-4" />
+                  Save
+                </Button>
               )}
             </div>
           </div>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {view === 'upload' ? (
-          <div className="grid lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            <div className="space-y-6 animate-slide-up">
-              <BillUploader onBillScanned={handleBillScanned} />
-              
-              <div className="text-center">
-                <p className="text-muted-foreground mb-2">Or start from scratch</p>
-                <Button
-                  variant="outline"
-                  onClick={() => setView('edit')}
-                  className="gap-2"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Create Manual Bill
-                </Button>
-              </div>
-            </div>
-            
-            <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              <BillHistory
-                bills={bills}
-                loading={loading}
-                onSelectBill={handleSelectBill}
-                onDuplicateBill={duplicateBill}
-                onDeleteBill={handleDeleteBill}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="grid lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-            {/* Left Column - Bill Details */}
-            <div className="space-y-6 animate-slide-up">
-              <BillEditor bill={currentBill} onBillChange={setCurrentBill} />
-              <PeopleManager bill={currentBill} onBillChange={setCurrentBill} />
-            </div>
-
-            {/* Middle Column - Assignments */}
-            <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              <ItemAssignment bill={currentBill} onBillChange={setCurrentBill} />
-            </div>
-
-            {/* Right Column - Summary */}
-            <div className="space-y-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              <SplitSummary bill={currentBill} />
-              
-              <BillHistory
-                bills={bills}
-                loading={loading}
-                onSelectBill={handleSelectBill}
-                onDuplicateBill={duplicateBill}
-                onDeleteBill={handleDeleteBill}
-              />
+        
+        {/* Bill Tabs */}
+        {openBills.length > 0 && (
+          <div className="border-t border-border bg-muted/30">
+            <div className="container mx-auto px-4">
+              <ScrollArea className="w-full">
+                <div className="flex items-center gap-1 py-2">
+                  {openBills.map((ob, index) => (
+                    <button
+                      key={ob.bill.id}
+                      onClick={() => setActiveTabIndex(index)}
+                      className={cn(
+                        "group flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                        "hover:bg-background/80",
+                        index === activeTabIndex
+                          ? "bg-background text-foreground shadow-sm border border-border"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      <Receipt className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate max-w-[120px]">{getBillTabName(ob)}</span>
+                      <button
+                        onClick={(e) => handleCloseTab(index, e)}
+                        className={cn(
+                          "p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-colors",
+                          index === activeTabIndex ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                        )}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </button>
+                  ))}
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
             </div>
           </div>
         )}
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6">
+        {currentView === 'upload' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <BillUploader onBillScanned={handleBillScanned} />
+            </div>
+            <div className="lg:col-span-1">
+              <BillHistory
+                bills={bills}
+                loading={loading}
+                onSelectBill={handleSelectBill}
+                onDuplicateBill={duplicateBill}
+                onDeleteBill={handleDeleteBill}
+              />
+            </div>
+          </div>
+        ) : currentBill ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column - Bill Details */}
+            <div className="lg:col-span-4 space-y-6">
+              <BillEditor bill={currentBill} onBillChange={updateCurrentBill} />
+              <PeopleManager bill={currentBill} onBillChange={updateCurrentBill} />
+            </div>
+            
+            {/* Middle Column - Item Assignment */}
+            <div className="lg:col-span-5">
+              <ItemAssignment bill={currentBill} onBillChange={updateCurrentBill} />
+            </div>
+            
+            {/* Right Column - Summary */}
+            <div className="lg:col-span-3 space-y-6">
+              <SplitSummary bill={currentBill} />
+              <BillHistory
+                bills={bills}
+                loading={loading}
+                onSelectBill={handleSelectBill}
+                onDuplicateBill={duplicateBill}
+                onDeleteBill={handleDeleteBill}
+              />
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );
